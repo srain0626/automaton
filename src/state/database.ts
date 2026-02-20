@@ -28,10 +28,19 @@ import type {
 import { SCHEMA_VERSION, CREATE_TABLES, MIGRATION_V2, MIGRATION_V3 } from "./schema.js";
 
 export function createDatabase(dbPath: string): AutomatonDatabase {
-  // Ensure directory exists
+  // Ensure directory exists (recursive: true is idempotent — safe even if dir already exists)
   const dir = path.dirname(dbPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+
+  // Remove stale lock directory left behind by a previously crashed process.
+  // node-sqlite3-wasm uses a "<db>.lock" directory for advisory locking; if the
+  // process is killed before db.close() the lock is never released, causing
+  // SQLITE_BUSY ("database is locked") on every subsequent startup.
+  // fs.rmSync with force: true is a no-op when the path doesn't exist.
+  try {
+    fs.rmSync(dbPath + ".lock", { recursive: true, force: true });
+  } catch {
+    // Ignore – if we can't remove it we'll get a clear error from SQLite below
   }
 
   const db = new Database(dbPath);
