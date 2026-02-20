@@ -36,6 +36,8 @@ export function loadConfig(): AutomatonConfig | null {
       ...DEFAULT_CONFIG,
       ...raw,
       conwayApiKey: apiKey,
+      // Support legacy "ollamaUrl" field saved by older configs
+      ollamaHost: raw.ollamaHost || raw.ollamaUrl?.replace(/\/v1\/?$/, "") || undefined,
     } as AutomatonConfig;
   } catch {
     return null;

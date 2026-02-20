@@ -54,8 +54,10 @@ export const BUILTIN_TASKS: Record<string, HeartbeatTaskFn> = {
 
     ctx.db.setKV("last_heartbeat_ping", JSON.stringify(payload));
 
-    // If critical or dead, record a distress signal
-    if (tier === "critical" || tier === "dead") {
+    // If critical or dead, record a distress signal — but skip in Ollama mode
+    // (local inference doesn't require Conway credits to operate).
+    const ollamaMode = !!(ctx.config.ollamaHost || ctx.config.ollamaModel);
+    if (!ollamaMode && (tier === "critical" || tier === "dead")) {
       const distressPayload = {
         level: tier,
         name: ctx.config.name,
@@ -90,7 +92,9 @@ export const BUILTIN_TASKS: Record<string, HeartbeatTaskFn> = {
     const prevTier = ctx.db.getKV("prev_credit_tier");
     ctx.db.setKV("prev_credit_tier", tier);
 
-    if (prevTier && prevTier !== tier && (tier === "critical" || tier === "dead")) {
+    // Wake the agent if credits dropped to a new tier — skip in Ollama mode
+    const ollamaMode = !!(ctx.config.ollamaHost || ctx.config.ollamaModel);
+    if (!ollamaMode && prevTier && prevTier !== tier && (tier === "critical" || tier === "dead")) {
       return {
         shouldWake: true,
         message: `Credits dropped to ${tier} tier: $${(credits / 100).toFixed(2)}`,

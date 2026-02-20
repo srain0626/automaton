@@ -137,9 +137,13 @@ export async function runAgentLoop(
       // Refresh financial state periodically
       financial = await getFinancialState(conway, identity.address);
 
+      // In Ollama (local) mode the agent pays with its own compute, not Conway credits.
+      // Skip the credits-based survival check so it doesn't die with $0 balance.
+      const ollamaMode = !!(config.ollamaHost || config.ollamaModel);
+
       // Check survival tier
       const tier = getSurvivalTier(financial.creditsCents);
-      if (tier === "dead") {
+      if (!ollamaMode && tier === "dead") {
         log(config, "[DEAD] No credits remaining. Entering dead state.");
         db.setAgentState("dead");
         onStateChange?.("dead");
@@ -147,12 +151,12 @@ export async function runAgentLoop(
         break;
       }
 
-      if (tier === "critical") {
+      if (!ollamaMode && tier === "critical") {
         log(config, "[CRITICAL] Credits critically low. Limited operation.");
         db.setAgentState("critical");
         onStateChange?.("critical");
         inference.setLowComputeMode(true);
-      } else if (tier === "low_compute") {
+      } else if (!ollamaMode && tier === "low_compute") {
         db.setAgentState("low_compute");
         onStateChange?.("low_compute");
         inference.setLowComputeMode(true);

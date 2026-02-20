@@ -74,6 +74,23 @@ export function createConwayClient(
     command: string,
     timeout?: number,
   ): Promise<ExecResult> => {
+    // If no sandboxId is configured, skip the remote API and run locally.
+    if (!sandboxId) {
+      try {
+        const stdout = execSync(command, {
+          timeout,
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        return { stdout: stdout || "", stderr: "", exitCode: 0 };
+      } catch (execErr: any) {
+        return {
+          stdout: execErr?.stdout?.toString?.() || "",
+          stderr: execErr?.stderr?.toString?.() || execErr?.message || "",
+          exitCode: execErr?.status ?? 1,
+        };
+      }
+    }
     try {
       const result = await request(
         "POST",

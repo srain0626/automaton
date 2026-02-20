@@ -43,10 +43,23 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     // Ignore – if we can't remove it we'll get a clear error from SQLite below
   }
 
+  // Remove stale WAL files. node-sqlite3-wasm (WASM SQLite) cannot recover
+  // WAL files left from a previously crashed process because WASM lacks OS-level
+  // shared-memory support. Any uncommitted WAL data is already lost at the OS
+  // level on crash, so removing these files is safe and necessary to re-open.
+  for (const suffix of ["-wal", "-shm"]) {
+    try {
+      fs.rmSync(dbPath + suffix, { force: true });
+    } catch {
+      // Ignore
+    }
+  }
+
   const db = new Database(dbPath);
 
-  // Enable WAL mode for better concurrent read performance
-  db.exec("PRAGMA journal_mode = WAL");
+  // Do NOT enable WAL mode: node-sqlite3-wasm's WASM build lacks OS shared-memory
+  // support and cannot re-open a database that has leftover WAL files from a crash.
+  // The default DELETE journal mode is safe and correct for single-process use.
   db.exec("PRAGMA foreign_keys = ON");
 
   // Initialize schema

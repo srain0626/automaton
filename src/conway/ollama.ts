@@ -9,7 +9,6 @@
  *   OLLAMA_MODEL  – Model name to use  (default: qwen2:7b)
  */
 
-import { spawnSync } from "child_process";
 import type {
   InferenceClient,
   ChatMessage,
@@ -83,10 +82,14 @@ export function createOllamaClient(
 
     console.log(`[Ollama] Pulling model "${model}"…`);
     try {
-      const result = spawnSync("ollama", ["pull", model], { stdio: "inherit" });
-      if (result.error) throw result.error;
-      if (result.status !== 0) {
-        throw new Error(`ollama pull exited with code ${result.status}`);
+      const pullResp = await fetch(`${host}/api/pull`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: model, stream: false }),
+      });
+      if (!pullResp.ok) {
+        const text = await pullResp.text();
+        throw new Error(`Ollama pull request failed (${pullResp.status}): ${text}`);
       }
       pulledModels.add(model);
       console.log(`[Ollama] Model "${model}" ready.`);
@@ -105,23 +108,28 @@ export function createOllamaClient(
 
     await ensureModel(model);
 
+    // Use native Ollama /api/chat endpoint for proper num_ctx support
     const body: Record<string, unknown> = {
       model,
       messages: messages.map(formatMessage),
       stream: false,
-      max_tokens: opts?.maxTokens ?? maxTokens,
+      options: {
+        // Extend context window to handle large system prompts.
+        // Default is 4096 which causes prompt truncation.
+        num_ctx: 8192,
+        num_predict: opts?.maxTokens ?? maxTokens,
+      },
     };
 
     if (opts?.temperature !== undefined) {
-      body.temperature = opts.temperature;
+      (body.options as Record<string, unknown>).temperature = opts.temperature;
     }
 
     if (opts?.tools && opts.tools.length > 0) {
       body.tools = opts.tools;
-      body.tool_choice = "auto";
     }
 
-    const resp = await fetch(`${host}/v1/chat/completions`, {
+    const resp = await fetch(`${host}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -133,32 +141,33 @@ export function createOllamaClient(
     }
 
     const data = (await resp.json()) as any;
-    const choice = data.choices?.[0];
+    const message = data.message;
 
-    if (!choice) {
-      throw new Error("No completion choice returned from Ollama");
+    if (!message) {
+      throw new Error("No message returned from Ollama");
     }
 
-    const message = choice.message;
-
     const usage: TokenUsage = {
-      promptTokens: data.usage?.prompt_tokens ?? 0,
-      completionTokens: data.usage?.completion_tokens ?? 0,
-      totalTokens: data.usage?.total_tokens ?? 0,
+      promptTokens: data.prompt_eval_count ?? 0,
+      completionTokens: data.eval_count ?? 0,
+      totalTokens: (data.prompt_eval_count ?? 0) + (data.eval_count ?? 0),
     };
 
     const toolCalls: InferenceToolCall[] | undefined =
-      message.tool_calls?.map((tc: any) => ({
-        id: tc.id,
+      message.tool_calls?.map((tc: any, idx: number) => ({
+        id: tc.id || `call_${idx}`,
         type: "function" as const,
         function: {
           name: tc.function.name,
-          arguments: tc.function.arguments,
+          arguments:
+            typeof tc.function.arguments === "string"
+              ? tc.function.arguments
+              : JSON.stringify(tc.function.arguments),
         },
       }));
 
     return {
-      id: data.id || "",
+      id: data.created_at || "",
       model: data.model || model,
       message: {
         role: message.role,
@@ -167,7 +176,7 @@ export function createOllamaClient(
       },
       toolCalls,
       usage,
-      finishReason: choice.finish_reason || "stop",
+      finishReason: data.done_reason || (data.done ? "stop" : "length"),
     };
   };
 
