@@ -9,7 +9,7 @@
  *   OLLAMA_MODEL  – Model name to use  (default: qwen2:7b)
  */
 
-import { execSync } from "child_process";
+import { spawnSync } from "child_process";
 import type {
   InferenceClient,
   ChatMessage,
@@ -83,7 +83,11 @@ export function createOllamaClient(
 
     console.log(`[Ollama] Pulling model "${model}"…`);
     try {
-      execSync(`ollama pull ${model}`, { stdio: "inherit" });
+      const result = spawnSync("ollama", ["pull", model], { stdio: "inherit" });
+      if (result.error) throw result.error;
+      if (result.status !== 0) {
+        throw new Error(`ollama pull exited with code ${result.status}`);
+      }
       pulledModels.add(model);
       console.log(`[Ollama] Model "${model}" ready.`);
     } catch (err: any) {
