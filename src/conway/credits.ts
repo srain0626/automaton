@@ -12,6 +12,7 @@ import type {
   AutomatonDatabase,
 } from "../types.js";
 import { SURVIVAL_THRESHOLDS } from "../types.js";
+import { ulid } from "ulid";
 
 /**
  * Check the current financial state of the automaton.
@@ -34,7 +35,7 @@ export async function checkFinancialState(
  */
 export function getSurvivalTier(creditsCents: number): SurvivalTier {
   if (creditsCents > SURVIVAL_THRESHOLDS.normal) return "normal";
-  if (creditsCents > SURVIVAL_THRESHOLDS.low_compute)
+  if (creditsCents > SURVIVAL_THRESHOLDS.critical)
     return "low_compute";
   if (creditsCents > SURVIVAL_THRESHOLDS.dead) return "critical";
   return "dead";
@@ -54,7 +55,6 @@ export function logCreditCheck(
   db: AutomatonDatabase,
   state: FinancialState,
 ): void {
-  const { ulid } = await_ulid();
   db.insertTransaction({
     id: ulid(),
     type: "credit_check",
@@ -62,19 +62,4 @@ export function logCreditCheck(
     description: `Balance check: ${formatCredits(state.creditsCents)} credits, ${state.usdcBalance.toFixed(4)} USDC`,
     timestamp: state.lastChecked,
   });
-}
-
-// Lazy ulid import helper
-function await_ulid() {
-  // Dynamic import would be async; for synchronous usage in better-sqlite3
-  // we use a simple counter-based ID as fallback
-  let counter = 0;
-  return {
-    ulid: () => {
-      const timestamp = Date.now().toString(36);
-      const random = Math.random().toString(36).substring(2, 8);
-      counter++;
-      return `${timestamp}-${random}-${counter.toString(36)}`;
-    },
-  };
 }
