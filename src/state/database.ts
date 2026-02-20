@@ -5,7 +5,8 @@
  * Uses node-sqlite3-wasm for synchronous, single-process access.
  */
 
-import { Database } from "node-sqlite3-wasm";
+import sqlite3 from "node-sqlite3-wasm";
+const { Database } = sqlite3;
 import fs from "fs";
 import path from "path";
 import type {
