@@ -54,6 +54,10 @@ export interface AutomatonConfig {
   maxChildren: number;
   parentAddress?: Address;
   socialRelayUrl?: string;
+  /** Ollama host URL for local inference (e.g. http://localhost:11434) */
+  ollamaHost?: string;
+  /** Ollama model name to use (e.g. qwen2:7b) */
+  ollamaModel?: string;
 }
 
 export const DEFAULT_CONFIG: Partial<AutomatonConfig> = {
