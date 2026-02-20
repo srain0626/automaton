@@ -40,6 +40,26 @@ For automated sandbox provisioning:
 curl -fsSL https://conway.tech/automaton.sh | sh
 ```
 
+### Termux (Android)
+
+Run the automaton natively inside [Termux](https://termux.dev) on Android — no root required:
+
+```bash
+curl -fsSL https://conway.tech/install-termux.sh | sh
+```
+
+Or manually:
+
+```bash
+pkg update && pkg install -y nodejs-lts git python make clang binutils
+git clone https://github.com/Conway-Research/automaton.git ~/automaton
+cd ~/automaton
+npm install && npm run build
+node dist/index.js --run
+```
+
+The installer clones the repository to `~/automaton`, builds it, and starts the interactive setup wizard. Everything is stored under `~/.automaton/` — the same layout as on Linux.
+
 ## How It Works
 
 Every automaton runs a continuous loop: **Think → Act → Observe → Repeat.**

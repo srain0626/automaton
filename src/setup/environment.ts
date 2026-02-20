@@ -26,6 +26,14 @@ export function detectEnvironment(): EnvironmentInfo {
     return { type: "docker", sandboxId: "" };
   }
 
-  // 4. Fall back to platform
+  // 4. Check Termux (Android terminal emulator)
+  if (
+    process.env.TERMUX_VERSION ||
+    (process.env.PREFIX && process.env.PREFIX.includes("com.termux"))
+  ) {
+    return { type: "termux", sandboxId: "" };
+  }
+
+  // 5. Fall back to platform
   return { type: process.platform, sandboxId: "" };
 }
