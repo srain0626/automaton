@@ -27,7 +27,7 @@ Update from Sigil (Creator): I bought more baremetal servers for Conway Cloud, i
 ## Quick Start
 
 ```bash
-git clone https://github.com/Conway-Research/automaton.git
+git clone https://github.com/srain0626/automaton.git
 cd automaton
 npm install && npm run build
 node dist/index.js --run
@@ -103,7 +103,7 @@ Automatons run on <a href="https://app.conway.tech" target="_blank">Conway Cloud
 ## Development
 
 ```bash
-git clone https://github.com/Conway-Research/automaton.git
+git clone https://github.com/srain0626/automaton.git
 cd automaton
 pnpm install
 pnpm build
@@ -117,9 +117,10 @@ node dist/index.js --run
 
 Creator CLI:
 ```bash
-node packages/cli/dist/index.js status
-node packages/cli/dist/index.js logs --tail 20
-node packages/cli/dist/index.js fund 5.00
+automaton-cli status
+automaton-cli logs --tail 20
+automaton-cli fund 5.00
+automaton-cli send <to-address> <message>
 ```
 
 ## Project Structure
