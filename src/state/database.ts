@@ -2,10 +2,10 @@
  * Automaton Database
  *
  * SQLite-backed persistent state for the automaton.
- * Uses better-sqlite3 for synchronous, single-process access.
+ * Uses node-sqlite3-wasm for synchronous, single-process access.
  */
 
-import Database from "better-sqlite3";
+import { Database } from "node-sqlite3-wasm";
 import fs from "fs";
 import path from "path";
 import type {
@@ -36,8 +36,8 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
   const db = new Database(dbPath);
 
   // Enable WAL mode for better concurrent read performance
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA foreign_keys = ON");
 
   // Initialize schema
   db.exec(CREATE_TABLES);
@@ -74,7 +74,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
   const setIdentity = (key: string, value: string): void => {
     db.prepare(
       "INSERT OR REPLACE INTO identity (key, value) VALUES (?, ?)",
-    ).run(key, value);
+    ).run([key, value]);
   };
 
   // ─── Turns ───────────────────────────────────────────────────
@@ -83,7 +83,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     db.prepare(
       `INSERT INTO turns (id, timestamp, state, input, input_source, thinking, tool_calls, token_usage, cost_cents)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
+    ).run([
       turn.id,
       turn.timestamp,
       turn.state,
@@ -93,7 +93,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
       JSON.stringify(turn.toolCalls),
       JSON.stringify(turn.tokenUsage),
       turn.costCents,
-    );
+    ]);
   };
 
   const getRecentTurns = (limit: number): AgentTurn[] => {
@@ -128,7 +128,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     db.prepare(
       `INSERT INTO tool_calls (id, turn_id, name, arguments, result, duration_ms, error)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
+    ).run([
       call.id,
       turnId,
       call.name,
@@ -136,7 +136,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
       call.result,
       call.durationMs,
       call.error ?? null,
-    );
+    ]);
   };
 
   const getToolCallsForTurn = (turnId: string): ToolCallResult[] => {
@@ -159,7 +159,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     db.prepare(
       `INSERT OR REPLACE INTO heartbeat_entries (name, schedule, task, enabled, last_run, next_run, params, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-    ).run(
+    ).run([
       entry.name,
       entry.schedule,
       entry.task,
@@ -167,7 +167,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
       entry.lastRun ?? null,
       entry.nextRun ?? null,
       JSON.stringify(entry.params ?? {}),
-    );
+    ]);
   };
 
   const updateHeartbeatLastRun = (
@@ -176,7 +176,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
   ): void => {
     db.prepare(
       "UPDATE heartbeat_entries SET last_run = ?, updated_at = datetime('now') WHERE name = ?",
-    ).run(timestamp, name);
+    ).run([timestamp, name]);
   };
 
   // ─── Transactions ────────────────────────────────────────────
@@ -185,13 +185,13 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     db.prepare(
       `INSERT INTO transactions (id, type, amount_cents, balance_after_cents, description)
        VALUES (?, ?, ?, ?, ?)`,
-    ).run(
+    ).run([
       txn.id,
       txn.type,
       txn.amountCents ?? null,
       txn.balanceAfterCents ?? null,
       txn.description,
-    );
+    ]);
   };
 
   const getRecentTransactions = (limit: number): Transaction[] => {
@@ -216,14 +216,14 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     db.prepare(
       `INSERT OR REPLACE INTO installed_tools (id, name, type, config, installed_at, enabled)
        VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run(
+    ).run([
       tool.id,
       tool.name,
       tool.type,
       JSON.stringify(tool.config ?? {}),
       tool.installedAt,
       tool.enabled ? 1 : 0,
-    );
+    ]);
   };
 
   const removeTool = (id: string): void => {
@@ -238,7 +238,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     db.prepare(
       `INSERT INTO modifications (id, timestamp, type, description, file_path, diff, reversible)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
+    ).run([
       mod.id,
       mod.timestamp,
       mod.type,
@@ -246,7 +246,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
       mod.filePath ?? null,
       mod.diff ?? null,
       mod.reversible ? 1 : 0,
-    );
+    ]);
   };
 
   const getRecentModifications = (
@@ -272,7 +272,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
   const setKV = (key: string, value: string): void => {
     db.prepare(
       "INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES (?, ?, datetime('now'))",
-    ).run(key, value);
+    ).run([key, value]);
   };
 
   const deleteKV = (key: string): void => {
@@ -300,7 +300,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     db.prepare(
       `INSERT OR REPLACE INTO skills (name, description, auto_activate, requires, instructions, source, path, enabled, installed_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
+    ).run([
       skill.name,
       skill.description,
       skill.autoActivate ? 1 : 0,
@@ -310,7 +310,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
       skill.path,
       skill.enabled ? 1 : 0,
       skill.installedAt,
-    );
+    ]);
   };
 
   const removeSkill = (name: string): void => {
@@ -337,7 +337,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     db.prepare(
       `INSERT INTO children (id, name, address, sandbox_id, genesis_prompt, creator_message, funded_amount_cents, status, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
+    ).run([
       child.id,
       child.name,
       child.address,
@@ -347,13 +347,13 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
       child.fundedAmountCents,
       child.status,
       child.createdAt,
-    );
+    ]);
   };
 
   const updateChildStatus = (id: string, status: ChildStatus): void => {
     db.prepare(
       "UPDATE children SET status = ?, last_checked = datetime('now') WHERE id = ?",
-    ).run(status, id);
+    ).run([status, id]);
   };
 
   // ─── Registry ──────────────────────────────────────────────
@@ -369,14 +369,14 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     db.prepare(
       `INSERT OR REPLACE INTO registry (agent_id, agent_uri, chain, contract_address, tx_hash, registered_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run(
+    ).run([
       entry.agentId,
       entry.agentURI,
       entry.chain,
       entry.contractAddress,
       entry.txHash,
       entry.registeredAt,
-    );
+    ]);
   };
 
   // ─── Reputation ────────────────────────────────────────────
@@ -385,14 +385,14 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     db.prepare(
       `INSERT INTO reputation (id, from_agent, to_agent, score, comment, tx_hash)
        VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run(
+    ).run([
       entry.id,
       entry.fromAgent,
       entry.toAgent,
       entry.score,
       entry.comment,
       entry.txHash ?? null,
-    );
+    ]);
   };
 
   const getReputation = (agentAddress?: string): ReputationEntry[] => {
@@ -400,7 +400,7 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
       ? "SELECT * FROM reputation WHERE to_agent = ? ORDER BY created_at DESC"
       : "SELECT * FROM reputation ORDER BY created_at DESC";
     const params = agentAddress ? [agentAddress] : [];
-    const rows = db.prepare(query).all(...params) as any[];
+    const rows = db.prepare(query).all(params.length ? params : undefined) as any[];
     return rows.map(deserializeReputation);
   };
 
@@ -410,13 +410,13 @@ export function createDatabase(dbPath: string): AutomatonDatabase {
     db.prepare(
       `INSERT OR IGNORE INTO inbox_messages (id, from_address, content, received_at, reply_to)
        VALUES (?, ?, ?, ?, ?)`,
-    ).run(
+    ).run([
       msg.id,
       msg.from,
       msg.content,
       msg.createdAt || new Date().toISOString(),
       msg.replyTo ?? null,
-    );
+    ]);
   };
 
   const getUnprocessedInboxMessages = (limit: number): InboxMessage[] => {
