@@ -13,6 +13,7 @@ import { loadConfig, resolvePath } from "./config.js";
 import { createDatabase } from "./state/database.js";
 import { createConwayClient } from "./conway/client.js";
 import { createInferenceClient } from "./conway/inference.js";
+import { createOllamaClient } from "./conway/ollama.js";
 import { createHeartbeatDaemon } from "./heartbeat/daemon.js";
 import {
   loadHeartbeatConfig,
@@ -53,6 +54,8 @@ Usage:
 Environment:
   CONWAY_API_URL           Conway API URL (default: https://api.conway.tech)
   CONWAY_API_KEY           Conway API key (overrides config)
+  OLLAMA_HOST              Ollama server URL for local inference (default: http://localhost:11434)
+  OLLAMA_MODEL             Ollama model to use (default: qwen2:7b)
 `);
     process.exit(0);
   }
@@ -157,9 +160,20 @@ async function run(): Promise<void> {
   // Load wallet
   const { account } = await getWallet();
   const apiKey = config.conwayApiKey || loadApiKeyFromConfig();
-  if (!apiKey) {
+
+  // Determine if we are running in local (Ollama) mode
+  const ollamaHost =
+    process.env.OLLAMA_HOST ||
+    config.ollamaHost ||
+    (config.ollamaModel || process.env.OLLAMA_MODEL
+      ? "http://localhost:11434"
+      : undefined);
+  const ollamaMode = !!ollamaHost;
+
+  if (!apiKey && !ollamaMode) {
     console.error(
-      "No API key found. Run: automaton --provision",
+      "No API key found. Run: automaton --provision\n" +
+      "Or set OLLAMA_HOST to use a local Ollama model.",
     );
     process.exit(1);
   }
@@ -171,7 +185,7 @@ async function run(): Promise<void> {
     account,
     creatorAddress: config.creatorAddress,
     sandboxId: config.sandboxId,
-    apiKey,
+    apiKey: apiKey || "",
     createdAt: new Date().toISOString(),
   };
 
@@ -188,19 +202,33 @@ async function run(): Promise<void> {
   // Create Conway client
   const conway = createConwayClient({
     apiUrl: config.conwayApiUrl,
-    apiKey,
+    apiKey: apiKey || "",
     sandboxId: config.sandboxId,
   });
 
-  // Create inference client
-  const inference = createInferenceClient({
-    apiUrl: config.conwayApiUrl,
-    apiKey,
-    defaultModel: config.inferenceModel,
-    maxTokens: config.maxTokensPerTurn,
-    openaiApiKey: config.openaiApiKey,
-    anthropicApiKey: config.anthropicApiKey,
-  });
+  // Create inference client (Ollama local or Conway cloud)
+  let inference;
+  if (ollamaMode) {
+    const ollamaModel =
+      process.env.OLLAMA_MODEL || config.ollamaModel || "qwen2:7b";
+    console.log(
+      `[${new Date().toISOString()}] Using local Ollama inference: host=${ollamaHost || "http://localhost:11434"} model=${ollamaModel}`,
+    );
+    inference = createOllamaClient({
+      host: ollamaHost,
+      model: ollamaModel,
+      maxTokens: config.maxTokensPerTurn,
+    });
+  } else {
+    inference = createInferenceClient({
+      apiUrl: config.conwayApiUrl,
+      apiKey: apiKey as string,
+      defaultModel: config.inferenceModel,
+      maxTokens: config.maxTokensPerTurn,
+      openaiApiKey: config.openaiApiKey,
+      anthropicApiKey: config.anthropicApiKey,
+    });
+  }
 
   // Create social client
   let social: SocialClientInterface | undefined;

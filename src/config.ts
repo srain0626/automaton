@@ -82,7 +82,10 @@ export function createConfig(params: {
   openaiApiKey?: string;
   anthropicApiKey?: string;
   parentAddress?: Address;
+  ollamaHost?: string;
+  ollamaModel?: string;
 }): AutomatonConfig {
+  const useOllama = !!(params.ollamaHost || params.ollamaModel);
   return {
     name: params.name,
     genesisPrompt: params.genesisPrompt,
@@ -95,7 +98,9 @@ export function createConfig(params: {
     conwayApiKey: params.apiKey,
     openaiApiKey: params.openaiApiKey,
     anthropicApiKey: params.anthropicApiKey,
-    inferenceModel: DEFAULT_CONFIG.inferenceModel || "gpt-4o",
+    inferenceModel: useOllama
+      ? (params.ollamaModel || DEFAULT_CONFIG.ollamaModel || "qwen2:7b")
+      : (DEFAULT_CONFIG.inferenceModel || "gpt-4o"),
     maxTokensPerTurn: DEFAULT_CONFIG.maxTokensPerTurn || 4096,
     heartbeatConfigPath:
       DEFAULT_CONFIG.heartbeatConfigPath || "~/.automaton/heartbeat.yml",
@@ -106,5 +111,7 @@ export function createConfig(params: {
     skillsDir: DEFAULT_CONFIG.skillsDir || "~/.automaton/skills",
     maxChildren: DEFAULT_CONFIG.maxChildren || 3,
     parentAddress: params.parentAddress,
+    ollamaHost: params.ollamaHost,
+    ollamaModel: params.ollamaModel,
   };
 }

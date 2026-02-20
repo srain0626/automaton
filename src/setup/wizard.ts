@@ -77,6 +77,25 @@ export async function runSetupWizard(): Promise<AutomatonConfig> {
   console.log(chalk.green(`  Creator: ${creatorAddress}\n`));
 
   console.log(chalk.white("  Optional: bring your own inference provider keys (press Enter to skip)."));
+  console.log(chalk.dim("  You can also use a local Ollama model instead — configure it below.\n"));
+
+  const ollamaHostInput = await promptOptional(
+    "Ollama host URL (e.g. http://localhost:11434, press Enter to skip)",
+  );
+  let ollamaModel: string | undefined;
+  if (ollamaHostInput) {
+    const defaultOllamaModel = "qwen2:7b";
+    const ollamaModelInput = await promptOptional(
+      `Ollama model name (default: ${defaultOllamaModel}, press Enter to use default)`,
+    );
+    ollamaModel = ollamaModelInput || defaultOllamaModel;
+    console.log(
+      chalk.green(
+        `  Ollama configured: host=${ollamaHostInput} model=${ollamaModel}\n`,
+      ),
+    );
+  }
+
   const openaiApiKey = await promptOptional("OpenAI API key (sk-..., optional)");
   if (openaiApiKey && !openaiApiKey.startsWith("sk-")) {
     console.log(chalk.yellow("  Warning: OpenAI keys usually start with sk-. Saving anyway."));
@@ -87,7 +106,9 @@ export async function runSetupWizard(): Promise<AutomatonConfig> {
     console.log(chalk.yellow("  Warning: Anthropic keys usually start with sk-ant-. Saving anyway."));
   }
 
-  if (openaiApiKey || anthropicApiKey) {
+  if (ollamaHostInput) {
+    console.log(chalk.dim("  Inference: local Ollama model.\n"));
+  } else if (openaiApiKey || anthropicApiKey) {
     const providers = [
       openaiApiKey ? "OpenAI" : null,
       anthropicApiKey ? "Anthropic" : null,
@@ -119,6 +140,8 @@ export async function runSetupWizard(): Promise<AutomatonConfig> {
     apiKey,
     openaiApiKey: openaiApiKey || undefined,
     anthropicApiKey: anthropicApiKey || undefined,
+    ollamaHost: ollamaHostInput || undefined,
+    ollamaModel: ollamaModel || undefined,
   });
 
   saveConfig(config);
